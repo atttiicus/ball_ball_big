@@ -62,28 +62,11 @@ func _build_ui() -> void:
 
 	_add_spacer(vbox, 16)
 
-	var p2_hint := Label.new()
-	p2_hint.text = "双人模式：P2 使用 WASD 控制"
-	p2_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	p2_hint.add_theme_font_size_override("font_size", 12)
-	p2_hint.add_theme_color_override("font_color", Color(0.7, 0.7, 0.7))
-	vbox.add_child(p2_hint)
-
-	_add_spacer(vbox, 12)
-
 	var btn1 := Button.new()
 	btn1.text = "单人游戏"
 	btn1.custom_minimum_size = Vector2(0, 44)
 	btn1.pressed.connect(func(): _emit_start(false))
 	vbox.add_child(btn1)
-
-	_add_spacer(vbox, 8)
-
-	var btn2 := Button.new()
-	btn2.text = "本地双人"
-	btn2.custom_minimum_size = Vector2(0, 44)
-	btn2.pressed.connect(func(): _emit_start(true))
-	vbox.add_child(btn2)
 
 	_add_spacer(vbox, 8)
 

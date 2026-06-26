@@ -15,13 +15,11 @@ var effects_container: Node2D
 var world_border: Node2D
 var camera: GameCamera
 var player: Ball          # 主细胞（用于 HUD / 排名）
-var player2: Ball
 var player_cells: Array = []  # 所有玩家细胞
 var food_spawner: FoodSpawner
 var ai_spawner: AISpawner
 var hud: HUD
 
-var _two_player: bool = false
 var _start_time: float = 0.0
 var _peak_mass: float = 0.0
 
@@ -110,8 +108,7 @@ func _show_main_menu() -> void:
 	menu.start_game.connect(_on_game_start)
 
 
-func _on_game_start(player_name: String, two_player: bool, color: Color = Color(0.2, 0.6, 1.0)) -> void:
-	_two_player = two_player
+func _on_game_start(player_name: String, _two_player: bool, color: Color = Color(0.2, 0.6, 1.0)) -> void:
 	_start_time = Time.get_ticks_msec() / 1000.0
 	_peak_mass = 0.0
 
@@ -120,8 +117,6 @@ func _on_game_start(player_name: String, two_player: bool, color: Color = Color(
 		_spawn_online_players(player_name)
 	else:
 		_spawn_player(player_name, color)
-		if two_player:
-			_spawn_player2()
 
 	_setup_camera()
 	_setup_hud()
@@ -191,14 +186,6 @@ func _spawn_player(player_name: String = "Player", color: Color = Color(0.2, 0.6
 	)
 	player = cell
 	player_cells.append(cell)
-
-
-func _spawn_player2() -> void:
-	player2 = Player2Scene.instantiate()
-	player2.add_to_group("balls")
-	player2.got_eaten.connect(_on_player2_died)
-	ball_container.add_child(player2)
-	player2.global_position = WORLD_SIZE / 2.0 + Vector2(200, 0)
 
 
 # ── 分裂 ──────────────────────────────────────────────
@@ -302,8 +289,6 @@ func _setup_camera() -> void:
 		camera.make_current()
 
 	_update_camera_targets()
-	if _two_player and is_instance_valid(player2):
-		camera.targets = [player, player2]
 	if is_instance_valid(player):
 		camera.global_position = player.global_position
 
@@ -352,20 +337,11 @@ func _on_player_died(_by: Ball) -> void:
 	_trigger_death()
 
 
-func _on_player2_died(_by: Ball) -> void:
-	if is_instance_valid(camera):
-		camera.targets = camera.targets.filter(func(b): return is_instance_valid(b))
-		if camera.targets.is_empty():
-			camera.target = player if is_instance_valid(player) else null
-
-
 func _on_respawn() -> void:
 	_start_time = Time.get_ticks_msec() / 1000.0
 	_peak_mass = 0.0
 	var pname := player.ball_name if is_instance_valid(player) else "Player"
 	_spawn_player(pname)
-	if _two_player:
-		_spawn_player2()
 	_setup_camera()
 	_setup_hud()
 
