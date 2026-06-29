@@ -39,10 +39,22 @@ func _build_ui() -> void:
 
 	_name_input = LineEdit.new()
 	_name_input.placeholder_text = "输入昵称..."
-	_name_input.text = "Player"
+	_name_input.text = SaveManager.get_last_player_name()
 	_name_input.custom_minimum_size = Vector2(0, 40)
 	_name_input.alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(_name_input)
+
+	# 最高分小字（始终显示，无记录时提示"查看记录"）
+	var best_lbl := Label.new()
+	var best: int = SaveManager.get_best_mass()
+	if best > 0:
+		best_lbl.text = "历史最高：%d    累计 %d 局" % [best, SaveManager.get_total_games()]
+	else:
+		best_lbl.text = "暂无记录，点击「查看记录」可查看存档"
+	best_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	best_lbl.add_theme_font_size_override("font_size", 12)
+	best_lbl.add_theme_color_override("font_color", Color(0.7, 0.85, 1.0))
+	vbox.add_child(best_lbl)
 
 	_add_spacer(vbox, 10)
 
@@ -59,6 +71,10 @@ func _build_ui() -> void:
 	_skin_selector = SkinSelector.new()
 	_skin_selector.color_selected.connect(func(c): _selected_color = c)
 	skin_center.add_child(_skin_selector)
+	# 恢复上次选择的颜色
+	var saved_color := SaveManager.get_last_player_color()
+	_selected_color = saved_color
+	_skin_selector.try_select_color(saved_color)
 
 	_add_spacer(vbox, 16)
 
@@ -75,6 +91,14 @@ func _build_ui() -> void:
 	btn3.custom_minimum_size = Vector2(0, 44)
 	btn3.pressed.connect(_on_online_pressed)
 	vbox.add_child(btn3)
+
+	_add_spacer(vbox, 8)
+
+	var records_btn := Button.new()
+	records_btn.text = "查看记录"
+	records_btn.custom_minimum_size = Vector2(0, 44)
+	records_btn.pressed.connect(_on_records_pressed)
+	vbox.add_child(records_btn)
 
 	_add_spacer(vbox, 16)
 
@@ -104,6 +128,11 @@ func _emit_start(two_player: bool) -> void:
 		pname = "Player"
 	emit_signal("start_game", pname, two_player, _selected_color)
 	queue_free()
+
+
+func _on_records_pressed() -> void:
+	var panel := RecordsPanel.new()
+	get_parent().add_child(panel)
 
 
 func _add_spacer(parent: Control, h: int) -> void:

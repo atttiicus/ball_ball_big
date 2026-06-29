@@ -42,3 +42,10 @@ func _select(c: Color, active_btn: Button) -> void:
 	for btn in _buttons:
 		btn.modulate = Color(0.6, 0.6, 0.6) if btn != active_btn else Color.WHITE
 	emit_signal("color_selected", c)
+
+
+func try_select_color(c: Color) -> void:
+	for i in PRESET_COLORS.size():
+		if PRESET_COLORS[i].is_equal_approx(c):
+			_select(PRESET_COLORS[i], _buttons[i])
+			return

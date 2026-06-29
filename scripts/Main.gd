@@ -111,6 +111,7 @@ func _show_main_menu() -> void:
 func _on_game_start(player_name: String, _two_player: bool, color: Color = Color(0.2, 0.6, 1.0)) -> void:
 	_start_time = Time.get_ticks_msec() / 1000.0
 	_peak_mass = 0.0
+	SaveManager.save_player_prefs(player_name, color)
 
 	if not NetworkManager.players.is_empty():
 		NetworkManager.local_player_info["color"] = color
