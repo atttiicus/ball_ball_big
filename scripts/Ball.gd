@@ -13,11 +13,15 @@ var ball_color: Color = Color(0.2, 0.6, 1.0)
 var collision_shape: CollisionShape2D
 var name_label: Label
 
-# 特效容器，由 Main._ready() 赋值
 static var effects_node: Node2D = null
 
-# 出生保护：无敌期间不能被吃
 var is_invincible: bool = false
+
+# 视觉缩放（用于出生/脉冲动画）。setter 自动触发重绘。
+var visual_scale: float = 1.0:
+	set(v):
+		visual_scale = v
+		queue_redraw()
 
 const MIN_RADIUS := 15.0
 const MAX_RADIUS := 400.0
@@ -26,12 +30,10 @@ const WORLD_SIZE := Vector2(4000.0, 4000.0)
 
 
 func _ready() -> void:
-	# layer=1：球自身层；mask=2：只与边界墙（layer=2）物理碰撞，球之间不物理阻挡
 	collision_layer = 1
 	collision_mask = 2
 	_build_nodes()
 	_apply_mass(mass)
-	# 食物检测区域（Food 在 layer=4）
 	var area := Area2D.new()
 	var ashape := CollisionShape2D.new()
 	var circ := CircleShape2D.new()
@@ -45,24 +47,55 @@ func _ready() -> void:
 
 
 func _process(_delta: float) -> void:
-	if is_invincible:
-		queue_redraw()
+	# 移动变形和无敌闪烁都需要每帧重绘
+	queue_redraw()
 
 
 func _draw() -> void:
+	var draw_r := radius * visual_scale
+
+	# 无敌闪烁
 	var c := ball_color
 	if is_invincible:
-		# 闪烁效果提示无敌状态
 		c.a = 0.35 if (int(Time.get_ticks_msec() / 150) % 2 == 0) else 0.85
-	# 主体
-	draw_circle(Vector2.ZERO, radius, c)
-	# 高光
-	var highlight := ball_color.lightened(0.35)
-	highlight.a = 0.6
-	draw_circle(Vector2(-radius * 0.28, -radius * 0.28), radius * 0.3, highlight)
-	# 轮廓
-	draw_arc(Vector2.ZERO, radius, 0.0, TAU, 48, ball_color.darkened(0.3), 2.0)
 
+	# 移动变形：速度方向拉伸，垂直方向压缩
+	var spd := velocity.length()
+	if spd > 15.0 and visual_scale > 0.8:
+		var ratio := minf(spd / get_speed(), 1.0) * 0.18
+		var rot := velocity.angle()
+		draw_set_transform(Vector2.ZERO, rot, Vector2(1.0 + ratio, 1.0 - ratio * 0.55))
+
+	# 主体
+	draw_circle(Vector2.ZERO, draw_r, c)
+
+	# 高光
+	var highlight := ball_color.lightened(0.4)
+	highlight.a = 0.55
+	draw_circle(Vector2(-draw_r * 0.28, -draw_r * 0.28), draw_r * 0.32, highlight)
+
+	# 轮廓
+	draw_arc(Vector2.ZERO, draw_r, 0.0, TAU, 48, ball_color.darkened(0.28), 2.0)
+
+
+# ── 动画方法 ──────────────────────────────────────────
+
+func play_spawn_anim() -> void:
+	visual_scale = 0.0
+	var tw := create_tween()
+	tw.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_BACK)
+	tw.tween_property(self, "visual_scale", 1.0, 0.35)
+
+
+func play_pulse_anim() -> void:
+	var tw := create_tween()
+	tw.set_ease(Tween.EASE_OUT)
+	tw.tween_property(self, "visual_scale", 1.18, 0.1)
+	tw.set_ease(Tween.EASE_IN)
+	tw.tween_property(self, "visual_scale", 1.0, 0.14)
+
+
+# ── 核心逻辑 ──────────────────────────────────────────
 
 func _build_nodes() -> void:
 	collision_shape = CollisionShape2D.new()
@@ -91,7 +124,6 @@ func _apply_mass(new_mass: float) -> void:
 		name_label.size = Vector2(radius * 2, radius * 0.8)
 		name_label.text = ball_name
 
-	# 同步食物检测区域半径（collision_mask=4 的那个 Area2D）
 	for child in get_children():
 		if child is Area2D:
 			for sc in child.get_children():
@@ -124,13 +156,13 @@ func check_ball_collisions(balls: Array) -> void:
 		if other == self or not is_instance_valid(other):
 			continue
 		var dist: float = global_position.distance_to(other.global_position)
-		# 球间无物理碰撞，当对方球心进入本球半径内即可吞噬；无敌期间不可被吃
 		if dist < radius and can_eat(other) and not other.is_invincible:
 			_eat_ball(other)
 
 
 func _eat_ball(other: Ball) -> void:
 	add_mass(other.mass * 0.8)
+	play_pulse_anim()
 	var fx_parent := effects_node if is_instance_valid(effects_node) else get_parent()
 	EatEffect.spawn(fx_parent, other.global_position, other.ball_color, other.radius)
 	if SoundManager:
@@ -146,6 +178,7 @@ func _on_food_entered(area: Area2D) -> void:
 	if area is Food:
 		var food := area as Food
 		add_mass(food.food_mass)
+		play_pulse_anim()
 		if SoundManager:
 			SoundManager.play_eat_food()
 		emit_signal("eaten_food", food.food_mass)

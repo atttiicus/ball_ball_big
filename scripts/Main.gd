@@ -178,6 +178,7 @@ func _spawn_player(player_name: String = "Player", color: Color = Color(0.2, 0.6
 	ball_container.add_child(cell)
 	cell.global_position = WORLD_SIZE / 2.0 + Vector2(-200, 0)
 	cell._apply_mass(PI * 20.0 * 20.0)
+	cell.play_spawn_anim()
 	# 出生保护 3 秒：防止刚出生就被大球吃掉
 	cell.is_invincible = true
 	get_tree().create_timer(3.0).timeout.connect(func():
@@ -224,6 +225,8 @@ func _split_cell(cell: Player) -> void:
 	new_cell._apply_mass(half_mass)
 	new_cell.launch_velocity = cell.last_move_dir * Player.LAUNCH_SPEED
 	new_cell.merge_timer = Player.MERGE_DELAY
+	new_cell.play_spawn_anim()  # 新分裂块弹入
+	cell.play_pulse_anim()      # 原始块脉冲反馈
 
 	player_cells.append(new_cell)
 	_update_camera_targets()
