@@ -36,6 +36,7 @@ func _ready() -> void:
 	_setup_background()
 	_setup_food_spawner()
 	_setup_ai_spawner()
+	_spawn_bombs()
 	_show_main_menu()
 
 
@@ -98,6 +99,19 @@ func _setup_ai_spawner() -> void:
 	ai_spawner.world_size = WORLD_SIZE
 	ai_spawner.container = ball_container
 	add_child(ai_spawner)
+
+
+func _spawn_bombs() -> void:
+	const BOMB_COUNT := 8
+	# 炸弹放在远离世界边缘的区域，均匀散布
+	for i in BOMB_COUNT:
+		var bomb := Bomb.new()
+		var margin := 200.0
+		bomb.position = Vector2(
+			randf_range(margin, WORLD_SIZE.x - margin),
+			randf_range(margin, WORLD_SIZE.y - margin)
+		)
+		effects_container.add_child(bomb)
 
 
 # ── 菜单 / 游戏启动 ────────────────────────────────────
@@ -215,6 +229,8 @@ func _split_cell(cell: Player) -> void:
 	var half_mass := cell.mass / 2.0
 	cell._apply_mass(half_mass)
 	cell.merge_timer = Player.MERGE_DELAY
+	# 原始球也获得少量前向推力，让速度变化立即可感知
+	cell.launch_velocity = cell.last_move_dir * Player.LAUNCH_SPEED * 0.25
 
 	var new_cell: Player = PlayerScene.instantiate()
 	new_cell.ball_name = cell.ball_name

@@ -24,6 +24,8 @@ func _ready() -> void:
 	mass = PI * 20.0 * 20.0
 	super._ready()
 	got_eaten.connect(_on_got_eaten)
+	# 炸弹强制分裂：复用 split_requested 通道，Main 统一处理
+	split_forced.connect(func(): emit_signal("split_requested"))
 	add_to_group("player_cells")
 	_setup_joystick()
 

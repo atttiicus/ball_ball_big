@@ -4,6 +4,7 @@ extends CharacterBody2D
 signal eaten_food(amount: float)
 signal ate_ball(other: Ball)
 signal got_eaten(by: Ball)
+signal split_forced  # 被炸弹强制分裂
 
 var mass: float = 10.0
 var radius: float = 20.0
@@ -139,7 +140,8 @@ func add_mass(amount: float) -> void:
 
 
 func get_speed() -> float:
-	return clampf(250.0 / (1.0 + radius / 60.0), 80.0, 250.0)
+	# 速度与半径成反比：半径越小速度越快，分裂后速度提升约 40%
+	return clampf(4000.0 / radius, 70.0, 280.0)
 
 
 func can_eat(other: Ball) -> bool:
