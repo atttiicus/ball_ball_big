@@ -6,16 +6,26 @@ enum State { FORAGE, HUNT, FLEE }
 var state: State = State.FORAGE
 var _target_pos: Vector2 = Vector2.ZERO
 var _state_timer: float = 0.0
-var _split_cooldown: float = 0.0
+
+# ── 分裂 / 合并 ───────────────────────────────────────
+# null = 此球是领导球；非null = 此球是分裂出的从属球
+var group_leader: AIBall = null
+var merge_timer: float = 0.0
+
+const AI_MERGE_DELAY    := 12.0   # 分裂后多少秒才能合并
+const AI_MIN_SPLIT_RADIUS := 28.0  # 最小分裂半径
 
 # 分裂后的惯性飞出
 var launch_velocity: Vector2 = Vector2.ZERO
+const LAUNCH_SPEED  := 380.0
+const LAUNCH_DECEL  := 3.5
+
+# ── 战术分裂计时 ─────────────────────────────────────
+var _flee_timer: float = 0.0  # 持续逃跑时长
+var _hunt_timer: float = 0.0  # 持续追逐时长
+var _split_used: bool = false  # 每轮 flee/hunt 只分裂一次
 
 const STATE_INTERVAL := 0.4
-const AI_MIN_SPLIT_RADIUS := 30.0   # 达到此半径才会分裂
-const AI_SPLIT_CD_MIN := 8.0
-const AI_SPLIT_CD_MAX := 16.0
-const LAUNCH_DECEL := 3.5
 
 static var AI_NAMES := [
 	"Slime", "Blob", "Goo", "Orb", "Zap", "Nyx", "Pix", "Rex",
@@ -30,35 +40,75 @@ static var AI_COLORS := [
 
 func _ready() -> void:
 	ball_color = AI_COLORS[randi() % AI_COLORS.size()]
-	ball_name = AI_NAMES[randi() % AI_NAMES.size()]
+	ball_name  = AI_NAMES[randi() % AI_NAMES.size()]
 	mass = PI * randf_range(15.0, 35.0) ** 2
 	super._ready()
 	got_eaten.connect(_on_got_eaten)
 	split_forced.connect(_on_force_split)
 	_target_pos = _random_world_pos()
-	_split_cooldown = randf_range(AI_SPLIT_CD_MIN, AI_SPLIT_CD_MAX)
 
 
 func _physics_process(delta: float) -> void:
-	# 分裂惯性阶段
+	# 领导球消失时，从属球独立
+	if group_leader != null and not is_instance_valid(group_leader):
+		group_leader = null
+
+	# ── 惯性飞出阶段 ──────────────────────────────────
 	if launch_velocity.length() > 10.0:
 		move_and_collide(launch_velocity * delta)
 		launch_velocity = launch_velocity.lerp(Vector2.ZERO, LAUNCH_DECEL * delta)
 		clamp_to_world()
+		merge_timer = maxf(0.0, merge_timer - delta)
 		return
 
-	# 周期性分裂
-	_split_cooldown -= delta
-	if _split_cooldown <= 0.0 and radius >= AI_MIN_SPLIT_RADIUS:
-		_split_cooldown = randf_range(AI_SPLIT_CD_MIN, AI_SPLIT_CD_MAX)
-		_do_ai_split()
+	# ── 合并检查（从属球）─────────────────────────────
+	merge_timer = maxf(0.0, merge_timer - delta)
+	if group_leader != null and merge_timer <= 0.0:
+		var dist: float = global_position.distance_to(group_leader.global_position)
+		if dist < group_leader.radius:
+			_merge_into(group_leader)
+			return
+
+	# ── 从属球跟随领导球的目标 ─────────────────────────
+	if group_leader != null:
+		_target_pos = group_leader._target_pos
+		state       = group_leader.state
+		_move_toward(_target_pos, delta)
+		clamp_to_world()
 		return
 
-	# 正常 AI 行为
+	# ── 领导球逻辑 ────────────────────────────────────
 	_state_timer += delta
 	if _state_timer >= STATE_INTERVAL:
 		_state_timer = 0.0
 		_evaluate_state()
+
+	# 更新战术计时器
+	match state:
+		State.FLEE:
+			_flee_timer += delta
+			_hunt_timer  = 0.0
+		State.HUNT:
+			_hunt_timer += delta
+			_flee_timer  = 0.0
+		_:
+			_flee_timer  = 0.0
+			_hunt_timer  = 0.0
+			_split_used  = false  # 切回游荡时重置标志，允许下次再分裂
+
+	# 战术分裂判断
+	if not _split_used and radius >= AI_MIN_SPLIT_RADIUS:
+		var should_split := false
+		# 逃跑超过 2.5 秒还没甩掉威胁 → 分裂加速逃脱
+		if state == State.FLEE and _flee_timer >= 2.5:
+			should_split = true
+		# 追逐超过 5.5 秒还没吃到猎物 → 分裂一块飞出拦截
+		elif state == State.HUNT and _hunt_timer >= 5.5:
+			should_split = true
+		if should_split:
+			_split_used = true
+			_do_ai_split()
+			return
 
 	_move_toward(_target_pos, delta)
 	clamp_to_world()
@@ -66,9 +116,9 @@ func _physics_process(delta: float) -> void:
 
 func _evaluate_state() -> void:
 	var balls: Array = get_tree().get_nodes_in_group("balls")
-	var nearest_prey: Ball = null
+	var nearest_prey: Ball   = null
 	var nearest_threat: Ball = null
-	var prey_dist := INF
+	var prey_dist   := INF
 	var threat_dist := INF
 
 	for b in balls:
@@ -78,10 +128,10 @@ func _evaluate_state() -> void:
 		var ball := b as Ball
 		if can_eat(ball) and d < prey_dist:
 			nearest_prey = ball
-			prey_dist = d
+			prey_dist    = d
 		elif ball.can_eat(self) and d < threat_dist:
 			nearest_threat = ball
-			threat_dist = d
+			threat_dist    = d
 
 	if nearest_threat != null and threat_dist < radius * 8.0:
 		state = State.FLEE
@@ -96,6 +146,36 @@ func _evaluate_state() -> void:
 			_target_pos = _random_world_pos()
 
 
+func _do_ai_split() -> void:
+	if radius < AI_MIN_SPLIT_RADIUS:
+		return
+	var half_mass := mass / 2.0
+	_apply_mass(half_mass)
+
+	var new_ai := AIBall.new()
+	# 从属球的领导球：若我是从属球则指向同一领导，否则指向我自己
+	new_ai.group_leader  = group_leader if is_instance_valid(group_leader) else self
+	new_ai.merge_timer   = AI_MERGE_DELAY
+	new_ai.ball_color    = ball_color
+	new_ai.ball_name     = ball_name
+	new_ai.add_to_group("balls")
+	get_parent().add_child(new_ai)
+	new_ai.global_position = global_position
+	new_ai._apply_mass(half_mass)
+
+	# 分裂方向：朝当前目标射出
+	var dir := (_target_pos - global_position).normalized() \
+		if (_target_pos - global_position).length() > 10.0 else Vector2.RIGHT
+	new_ai.launch_velocity = dir * LAUNCH_SPEED
+	new_ai.play_spawn_anim()
+	play_pulse_anim()
+
+
+func _merge_into(target: AIBall) -> void:
+	target._apply_mass(target.mass + mass)
+	queue_free()
+
+
 func _move_toward(target: Vector2, delta: float) -> void:
 	var dir := target - global_position
 	if dir.length() < 10.0:
@@ -104,38 +184,17 @@ func _move_toward(target: Vector2, delta: float) -> void:
 	move_and_collide(velocity * delta)
 
 
-func _do_ai_split() -> void:
-	if radius < AI_MIN_SPLIT_RADIUS:
-		return
-	var half_mass := mass / 2.0
-	_apply_mass(half_mass)
-
-	var new_ai := AIBall.new()
-	new_ai.ball_color = ball_color
-	new_ai.ball_name = ball_name
-	new_ai.add_to_group("balls")
-	get_parent().add_child(new_ai)
-	new_ai.global_position = global_position
-	new_ai._apply_mass(half_mass)
-
-	# 朝当前移动方向飞出
-	var dir := (_target_pos - global_position).normalized() if (_target_pos - global_position).length() > 10.0 else Vector2.RIGHT
-	new_ai.launch_velocity = dir * 380.0
-	new_ai._split_cooldown = randf_range(AI_SPLIT_CD_MIN, AI_SPLIT_CD_MAX)
-	new_ai.play_spawn_anim()
-	play_pulse_anim()
-
-
-func _on_force_split() -> void:
-	_split_cooldown = randf_range(AI_SPLIT_CD_MIN, AI_SPLIT_CD_MAX)
-	_do_ai_split()
-
-
 func _random_world_pos() -> Vector2:
 	return Vector2(
 		randf_range(50.0, WORLD_SIZE.x - 50.0),
 		randf_range(50.0, WORLD_SIZE.y - 50.0)
 	)
+
+
+func _on_force_split() -> void:
+	# 炸弹强制分裂，无论领导/从属皆可触发（若体积够大）
+	_split_used = true
+	_do_ai_split()
 
 
 func _on_got_eaten(_by: Ball) -> void:
