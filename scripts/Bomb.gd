@@ -56,6 +56,10 @@ func _on_body_entered(body: Node2D) -> void:
 		return
 
 	_active = false
+	# 给触碰的球增加质量（普通食物的 BOMB_MASS_MULTIPLIER 倍）
+	var bonus_mass: float = PI * GameConfig.FOOD_RADIUS * GameConfig.FOOD_RADIUS \
+		* GameConfig.BOMB_MASS_MULTIPLIER
+	ball.add_mass(bonus_mass)
 	if is_instance_valid(Ball.effects_node):
 		EatEffect.spawn(Ball.effects_node, global_position, Color(1.0, 0.4, 0.0), GameConfig.BOMB_RADIUS * 3.0)
 	ball.emit_signal("split_forced")

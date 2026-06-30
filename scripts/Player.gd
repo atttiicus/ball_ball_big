@@ -2,6 +2,7 @@ class_name Player
 extends Ball
 
 signal split_requested
+signal mass_ejected(pos: Vector2, dir: Vector2, food_mass: float, color: Color)
 
 var is_dead: bool = false
 var joystick: TouchJoystick = null
@@ -9,6 +10,10 @@ var joystick: TouchJoystick = null
 var last_move_dir: Vector2 = Vector2.RIGHT
 var launch_velocity: Vector2 = Vector2.ZERO
 var merge_timer: float = 0.0
+
+# 吐出质量计数器（时间窗口限流）
+var _eject_count: int = 0
+var _eject_window_timer: float = 0.0
 
 func _ready() -> void:
 	if ball_color == Color.WHITE:
@@ -36,8 +41,17 @@ func _physics_process(delta: float) -> void:
 	if is_dead:
 		return
 
+	# 吐出质量计数器重置
+	_eject_window_timer += delta
+	if _eject_window_timer >= GameConfig.PLAYER_EJECT_WINDOW:
+		_eject_window_timer = 0.0
+		_eject_count = 0
+
 	if Input.is_action_just_pressed("split") and radius >= GameConfig.PLAYER_MIN_SPLIT_RADIUS:
 		emit_signal("split_requested")
+
+	if Input.is_action_just_pressed("eject_mass"):
+		_try_eject()
 
 	# 分裂后的惯性飞出阶段
 	if launch_velocity.length() > 10.0:
@@ -79,6 +93,23 @@ func _move_by_dir(dir: Vector2, delta: float) -> void:
 
 func can_merge_with(other: Player) -> bool:
 	return merge_timer <= 0.0 and other.merge_timer <= 0.0
+
+
+func _try_eject() -> void:
+	if radius < GameConfig.PLAYER_EJECT_MIN_RADIUS:
+		return
+	if _eject_count >= GameConfig.PLAYER_EJECT_MAX:
+		return
+	var eject_mass: float = mass / GameConfig.PLAYER_EJECT_MASS_RATIO
+	var min_mass: float = GameConfig.PLAYER_EJECT_MIN_RADIUS * GameConfig.PLAYER_EJECT_MIN_RADIUS * PI
+	if mass - eject_mass < min_mass:
+		return
+	# 扣除质量
+	_apply_mass(mass - eject_mass)
+	_eject_count += 1
+	# 从球的边缘发射，方向为当前移动方向
+	var spawn_pos: Vector2 = global_position + last_move_dir * (radius + GameConfig.FOOD_RADIUS + 2.0)
+	emit_signal("mass_ejected", spawn_pos, last_move_dir, eject_mass, ball_color)
 
 
 func _on_got_eaten(_by: Ball) -> void:

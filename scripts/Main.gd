@@ -203,6 +203,16 @@ func _spawn_player(player_name: String = "Player", color: Color = Color(0.2, 0.6
 func _connect_cell(cell: Player) -> void:
 	cell.got_eaten.connect(_on_cell_died.bind(cell))
 	cell.split_requested.connect(_on_split_requested)
+	cell.mass_ejected.connect(_on_mass_ejected)
+
+
+func _on_mass_ejected(pos: Vector2, dir: Vector2, food_mass: float, color: Color) -> void:
+	var ef := EjectedFood.new()
+	ef.food_mass  = food_mass
+	ef.food_color = color
+	ef.position   = pos
+	ef._velocity  = dir * GameConfig.PLAYER_EJECT_SPEED
+	food_container.add_child(ef)
 
 
 func _on_split_requested() -> void:

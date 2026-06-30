@@ -42,9 +42,17 @@ const FOOD_SPAWN_INTERVAL := 0.5   # 食物补充间隔（秒）
 const FOOD_RADIUS        := 6.0    # 食物半径
 
 # ── 炸弹参数 ──────────────────────────────────────────
-const BOMB_COUNT        := 8       # 场上炸弹数量
-const BOMB_RADIUS       := 14.0    # 炸弹碰撞半径
-const BOMB_RESPAWN_TIME := 18.0    # 炸弹触发后重生时间（秒）
+const BOMB_COUNT         := 8      # 场上炸弹数量
+const BOMB_RADIUS        := 14.0   # 炸弹碰撞半径
+const BOMB_RESPAWN_TIME  := 18.0   # 炸弹触发后重生时间（秒）
+const BOMB_MASS_MULTIPLIER := 10   # 触碰炸弹获得的质量倍数（相对普通食物）
+
+# ── 玩家吐出质量参数 ──────────────────────────────────
+const PLAYER_EJECT_MAX         := 20    # 时间窗口内最多吐出食物数
+const PLAYER_EJECT_WINDOW      := 5.0   # 时间窗口（秒），窗口内最多吐 EJECT_MAX 个
+const PLAYER_EJECT_MASS_RATIO  := 100.0 # 吐出质量 = 自身质量 / 此值
+const PLAYER_EJECT_MIN_RADIUS  := 22.0  # 半径低于此值时不允许吐出
+const PLAYER_EJECT_SPEED       := 600.0 # 吐出食物初速度
 
 # ── 摄像机参数 ────────────────────────────────────────
 const CAM_ZOOM_MIN           := 0.25   # 最大缩放比（最远）

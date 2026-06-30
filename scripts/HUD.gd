@@ -36,7 +36,7 @@ func _build_ui() -> void:
 	var hints_vbox := VBoxContainer.new()
 	hints_panel.add_child(hints_vbox)
 
-	for line in ["WASD  移动", "空格  分裂", "ESC   暂停"]:
+	for line in ["WASD  移动", "空格  分裂", "E     吐出质量", "ESC   暂停"]:
 		var lbl := Label.new()
 		lbl.text = line
 		lbl.add_theme_font_size_override("font_size", 13)
